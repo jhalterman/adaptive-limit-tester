@@ -7,20 +7,22 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"adaptivelimit/pkg/resource"
 	"adaptivelimit/pkg/util"
 )
 
 type Server struct {
-	configMtx       sync.Mutex
-	config          *ServerConfig
-	adaptiveLimiter *AdaptiveLimiter
+	configMtx          sync.Mutex
+	config             *ServerConfig
+	cpuLimiter         *CpuLimiter
+	concurrencyLimiter *ConcurrencyLimiter
 }
 
 func NewServer(config *ServerConfig) *Server {
+	cpuLimiter := NewCpuLimiter(config.InitialCpuTime, config.TenantCpuTimes)
 	server := &Server{
-		config:          config,
-		adaptiveLimiter: NewAdaptiveLimiter(resource.NewCpuLimiter(config.InitialCpuTime, config.TenantCpuTimes), util.Keys(config.TenantCpuTimes)),
+		config:             config,
+		cpuLimiter:         cpuLimiter,
+		concurrencyLimiter: NewConcurrencyLimiter(cpuLimiter, util.Keys(config.TenantCpuTimes)),
 	}
 	for tenant := range config.TenantCpuTimes {
 		http.HandleFunc("/"+tenant, server.cpuLimitedHandler(tenant))
@@ -40,12 +42,12 @@ func (s *Server) Start() {
 func (s *Server) cpuLimitedHandler(tenant string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.config.Fairness {
-			result := s.adaptiveLimiter.Acquire(tenant)
-			if result != 2 {
+			result := s.concurrencyLimiter.Acquire(tenant)
+			if result != 200 {
 				http.Error(w, http.StatusText(result), result)
 			}
 		} else {
-			if !s.adaptiveLimiter.limitedResource.Acquire(tenant) {
+			if !s.cpuLimiter.Acquire(tenant) {
 				http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
 			}
 		}
@@ -56,7 +58,7 @@ func (s *Server) Apply(config *ServerConfig) {
 	s.configMtx.Lock()
 	defer s.configMtx.Unlock()
 	s.config = config
-	s.adaptiveLimiter.limitedResource.SetInitialCpuTime(config.InitialCpuTime)
+	s.concurrencyLimiter.cpuLimiter.SetInitialCpuTime(config.InitialCpuTime)
 	fmt.Println(fmt.Sprintf("Reloaded server config: %v", config))
 }
 

@@ -10,16 +10,14 @@ import (
 	"github.com/platinummonkey/go-concurrency-limits/strategy/matchers"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	"adaptivelimit/pkg/resource"
 )
 
-type AdaptiveLimiter struct {
-	limiter         *limiter.DefaultLimiter
-	limitedResource resource.LimitedResource
+type ConcurrencyLimiter struct {
+	concurrencyLimiter *limiter.DefaultLimiter
+	cpuLimiter         *CpuLimiter
 }
 
-func NewAdaptiveLimiter(limitedResource resource.LimitedResource, tenants []string) *AdaptiveLimiter {
+func NewConcurrencyLimiter(cpuLimiter *CpuLimiter, tenants []string) *ConcurrencyLimiter {
 	partitions := make(map[string]*strategy.LookupPartition)
 
 	for _, tenant := range tenants {
@@ -52,7 +50,7 @@ func NewAdaptiveLimiter(limitedResource resource.LimitedResource, tenants []stri
 
 	partition, _ := strategy.NewLookupPartitionStrategyWithMetricRegistry(partitions, nil, 10, core.EmptyMetricRegistryInstance)
 	//adaptiveLimit := limit.NewDefaultAIMDLimit("adaptive", nil)
-	adaptiveLimit := limit.NewDefaultVegasLimit("adaptive", limit.BuiltinLimitLogger{}, core.EmptyMetricRegistryInstance)
+	adaptiveLimit := limit.NewDefaultVegasLimit("vegas", limit.BuiltinLimitLogger{}, core.EmptyMetricRegistryInstance)
 	partitionedLimiter, _ := limiter.NewDefaultLimiter(
 		adaptiveLimit,
 		int64(1e9),
@@ -63,23 +61,22 @@ func NewAdaptiveLimiter(limitedResource resource.LimitedResource, tenants []stri
 		limit.BuiltinLimitLogger{},
 		core.EmptyMetricRegistryInstance)
 
-	return &AdaptiveLimiter{
-		limiter:         partitionedLimiter,
-		limitedResource: limitedResource,
+	return &ConcurrencyLimiter{
+		concurrencyLimiter: partitionedLimiter,
+		cpuLimiter:         cpuLimiter,
 	}
 }
 
-func (l *AdaptiveLimiter) Acquire(tenant string) int {
+func (l *ConcurrencyLimiter) Acquire(tenant string) int {
 	ctx := context.WithValue(context.Background(), matchers.LookupPartitionContextKey, tenant)
-	token, ok := l.limiter.Acquire(ctx)
+	token, ok := l.concurrencyLimiter.Acquire(ctx)
 	if !ok {
-		return 430
+		return 430 // 430 indicates a concurrency limiter rejection
 	}
 
-	// Call the limited resource
-	if !l.limitedResource.Acquire(tenant) {
+	if !l.cpuLimiter.Acquire(tenant) {
 		token.OnDropped()
-		return 429
+		return 429 // 429 indicates a CPU limiter rejection
 	}
 	token.OnSuccess()
 	return 200
