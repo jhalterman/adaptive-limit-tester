@@ -1,0 +1,11 @@
+server:
+  fairness: true
+  initial_cpu_time: 1000   # Milliseconds of CPU available at any time
+  cpu_time:
+    quiet: 50             # Milliseconds of CPU used by a quiet request
+    noisy: 100             # Milliseconds of CPU used by a noisy request
+
+client:
+  rps:
+    quiet: 100
+    noisy: 150
