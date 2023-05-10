@@ -13,18 +13,18 @@ import (
 
 type Client struct {
 	configMtx       sync.Mutex
-	config          *ClientConfig
+	clientConfigs   ClientConfigs
 	responseCounter *prometheus.CounterVec
 }
 
-func NewClient(config *ClientConfig) *Client {
+func NewClient(clientConfigs ClientConfigs) *Client {
 	client := &Client{
-		config: config,
+		clientConfigs: clientConfigs,
 		responseCounter: promauto.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "ad_http_response",
 			},
-			[]string{"tenant", "response"},
+			[]string{"client", "response"},
 		),
 	}
 	//promauto.NewGaugeFunc(
@@ -39,24 +39,24 @@ func NewClient(config *ClientConfig) *Client {
 }
 
 func (c *Client) Start() {
-	for tenant := range c.config.TenantRps {
-		go c.doRequest(tenant)
+	for _, client := range c.clientConfigs.GetClients() {
+		go c.doRequest(client)
 	}
 }
 
-func (c *Client) doRequest(tenant string) {
+func (c *Client) doRequest(client string) {
 	for {
-		rps := c.getRps(tenant)
+		rps := c.getRps(client)
 		if rps == 0 {
 			time.Sleep(time.Second)
 			continue
 		}
 
 		go func() {
-			client := http.Client{
+			httpClient := http.Client{
 				Timeout: 10 * time.Second,
 			}
-			resp, err := client.Get("http://localhost:8080/" + tenant)
+			resp, err := httpClient.Get("http://localhost:8080/" + client)
 			if err == nil {
 				defer resp.Body.Close()
 			}
@@ -64,7 +64,7 @@ func (c *Client) doRequest(tenant string) {
 			if resp != nil {
 				statusCode = strconv.Itoa(resp.StatusCode)
 			}
-			c.responseCounter.WithLabelValues(tenant, statusCode).Inc()
+			c.responseCounter.WithLabelValues(client, statusCode).Inc()
 		}()
 
 		delay := time.Second / time.Duration(rps)
@@ -72,15 +72,15 @@ func (c *Client) doRequest(tenant string) {
 	}
 }
 
-func (c *Client) Apply(config *ClientConfig) {
+func (c *Client) Apply(clientConfigs ClientConfigs) {
 	c.configMtx.Lock()
 	defer c.configMtx.Unlock()
-	c.config = config
-	fmt.Println(fmt.Sprintf("Reloaded client config: %v", config))
+	c.clientConfigs = clientConfigs
+	fmt.Println(fmt.Sprintf("Reloaded client clientConfigs: %v", clientConfigs))
 }
 
-func (c *Client) getRps(tenant string) int {
+func (c *Client) getRps(client string) int {
 	c.configMtx.Lock()
 	defer c.configMtx.Unlock()
-	return c.config.TenantRps[tenant]
+	return c.clientConfigs.GetRps(client)
 }

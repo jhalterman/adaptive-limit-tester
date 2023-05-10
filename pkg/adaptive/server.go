@@ -6,26 +6,26 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"adaptivelimit/pkg/util"
 )
 
 type Server struct {
 	configMtx          sync.Mutex
-	config             *ServerConfig
+	serverConfig       *ServerConfig
+	clientConfigs      ClientConfigs
 	cpuLimiter         *CpuLimiter
 	concurrencyLimiter *ConcurrencyLimiter
 }
 
-func NewServer(config *ServerConfig) *Server {
-	cpuLimiter := NewCpuLimiter(config.InitialCpuTime, config.TenantCpuTimes)
+func NewServer(serverConfig *ServerConfig, clientConfigs ClientConfigs) *Server {
+	cpuLimiter := NewCpuLimiter(serverConfig.AvailableCpuTime, clientConfigs.GetCpuTimes())
 	server := &Server{
-		config:             config,
+		serverConfig:       serverConfig,
+		clientConfigs:      clientConfigs,
 		cpuLimiter:         cpuLimiter,
-		concurrencyLimiter: NewConcurrencyLimiter(cpuLimiter, util.Keys(config.TenantCpuTimes)),
+		concurrencyLimiter: NewConcurrencyLimiter(cpuLimiter, clientConfigs.GetClients()),
 	}
-	for tenant := range config.TenantCpuTimes {
-		http.HandleFunc("/"+tenant, server.cpuLimitedHandler(tenant))
+	for _, client := range clientConfigs.GetClients() {
+		http.HandleFunc("/"+client, server.cpuLimitedHandler(client))
 	}
 	return server
 }
@@ -39,31 +39,26 @@ func (s *Server) Start() {
 	}
 }
 
-func (s *Server) cpuLimitedHandler(tenant string) http.HandlerFunc {
+func (s *Server) cpuLimitedHandler(client string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.config.Fairness {
-			result := s.concurrencyLimiter.Acquire(tenant)
+		if s.serverConfig.Fairness {
+			result := s.concurrencyLimiter.Acquire(client)
 			if result != 200 {
 				http.Error(w, http.StatusText(result), result)
 			}
 		} else {
-			if !s.cpuLimiter.Acquire(tenant) {
+			if !s.cpuLimiter.Acquire(client) {
 				http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
 			}
 		}
 	}
 }
 
-func (s *Server) Apply(config *ServerConfig) {
+func (s *Server) Apply(serverConfig *ServerConfig, clientConfigs ClientConfigs) {
 	s.configMtx.Lock()
 	defer s.configMtx.Unlock()
-	s.config = config
-	s.concurrencyLimiter.cpuLimiter.SetInitialCpuTime(config.InitialCpuTime)
-	fmt.Println(fmt.Sprintf("Reloaded server config: %v", config))
-}
-
-func (s *Server) getCpuTime(tenant string) int {
-	s.configMtx.Lock()
-	defer s.configMtx.Unlock()
-	return s.config.TenantCpuTimes[tenant]
+	s.serverConfig = serverConfig
+	s.clientConfigs = clientConfigs
+	s.concurrencyLimiter.cpuLimiter.SetInitialCpuTime(serverConfig.AvailableCpuTime)
+	fmt.Println(fmt.Sprintf("Reloaded server serverConfig: %v", serverConfig))
 }

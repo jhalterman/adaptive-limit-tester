@@ -160,7 +160,7 @@
           "expr": "sum(rate(ad_http_response{response=\"200\"}[$__range])) without (response) / sum(rate(ad_http_response[$__range])) without (response)",
           "instant": true,
           "key": "Q-00a38406-3a0a-4c85-b2b4-15807d43f847-0",
-          "legendFormat": "{{tenant}}",
+          "legendFormat": "{{client}}",
           "range": true,
           "refId": "A"
         }
@@ -224,32 +224,7 @@
             ]
           }
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "noisy 430"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -280,7 +255,7 @@
           "expr": "rate(ad_http_response[$__range])",
           "instant": true,
           "key": "Q-c5f33e6f-fc99-45dd-b52d-f25645223153-0",
-          "legendFormat": "{{tenant}} {{response}}",
+          "legendFormat": "{{client}} {{response}}",
           "range": true,
           "refId": "A"
         },
@@ -297,7 +272,7 @@
           "refId": "B"
         }
       ],
-      "title": "Responses per second",
+      "title": "Responses Per Second",
       "type": "timeseries"
     },
     {
@@ -310,8 +285,103 @@
       },
       "id": 18,
       "panels": [],
-      "title": "Tenant Limits",
+      "title": "Concurrency Limits",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS-1}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS-1}"
+          },
+          "editorMode": "code",
+          "expr": "ad_client_limit",
+          "instant": true,
+          "key": "Q-0d25f59c-5f50-4f01-8084-be5964b907b3-0",
+          "legendFormat": "{{client}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Client Concurrency Limits",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -375,7 +445,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 10
       },
       "id": 16,
@@ -398,108 +468,13 @@
             "uid": "${DS_PROMETHEUS-1}"
           },
           "editorMode": "code",
-          "expr": "ad_tenant_busy_count / ad_tenant_limit",
-          "legendFormat": "{{tenant}}",
+          "expr": "ad_client_concurrency / ad_client_limit",
+          "legendFormat": "{{client}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Concurrency Limit Usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS-1}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
-      },
-      "id": 19,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS-1}"
-          },
-          "editorMode": "code",
-          "expr": "ad_tenant_limit",
-          "instant": true,
-          "key": "Q-0d25f59c-5f50-4f01-8084-be5964b907b3-0",
-          "legendFormat": "{{tenant}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Tenant Limits",
       "type": "timeseries"
     },
     {
@@ -512,7 +487,7 @@
       },
       "id": 10,
       "panels": [],
-      "title": "Concurrency",
+      "title": "CPU Concurrency",
       "type": "row"
     },
     {
@@ -730,6 +705,6 @@
   "timezone": "",
   "title": "Adaptive Concurrency",
   "uid": "4Usjf6y4z",
-  "version": 25,
+  "version": 26,
   "weekStart": ""
 }

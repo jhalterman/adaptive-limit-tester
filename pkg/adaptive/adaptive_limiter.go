@@ -17,20 +17,20 @@ type ConcurrencyLimiter struct {
 	cpuLimiter         *CpuLimiter
 }
 
-func NewConcurrencyLimiter(cpuLimiter *CpuLimiter, tenants []string) *ConcurrencyLimiter {
+func NewConcurrencyLimiter(cpuLimiter *CpuLimiter, clients []string) *ConcurrencyLimiter {
 	partitions := make(map[string]*strategy.LookupPartition)
 
-	for _, tenant := range tenants {
+	for _, client := range clients {
 		partition := strategy.NewLookupPartitionWithMetricRegistry(
-			tenant,
-			1.0/float64(len(tenants)),
+			client,
+			1.0/float64(len(clients)),
 			1,
 			core.EmptyMetricRegistryInstance,
 		)
 		promauto.NewGaugeFunc(
 			prometheus.GaugeOpts{
-				Name:        "ad_tenant_limit",
-				ConstLabels: map[string]string{"tenant": tenant},
+				Name:        "ad_client_limit",
+				ConstLabels: map[string]string{"client": client},
 			},
 			func() float64 {
 				return float64(partition.Limit())
@@ -38,14 +38,14 @@ func NewConcurrencyLimiter(cpuLimiter *CpuLimiter, tenants []string) *Concurrenc
 		)
 		promauto.NewGaugeFunc(
 			prometheus.GaugeOpts{
-				Name:        "ad_tenant_busy_count",
-				ConstLabels: map[string]string{"tenant": tenant},
+				Name:        "ad_client_concurrency",
+				ConstLabels: map[string]string{"client": client},
 			},
 			func() float64 {
 				return float64(partition.BusyCount())
 			},
 		)
-		partitions[tenant] = partition
+		partitions[client] = partition
 	}
 
 	partition, _ := strategy.NewLookupPartitionStrategyWithMetricRegistry(partitions, nil, 10, core.EmptyMetricRegistryInstance)
@@ -67,14 +67,14 @@ func NewConcurrencyLimiter(cpuLimiter *CpuLimiter, tenants []string) *Concurrenc
 	}
 }
 
-func (l *ConcurrencyLimiter) Acquire(tenant string) int {
-	ctx := context.WithValue(context.Background(), matchers.LookupPartitionContextKey, tenant)
+func (l *ConcurrencyLimiter) Acquire(client string) int {
+	ctx := context.WithValue(context.Background(), matchers.LookupPartitionContextKey, client)
 	token, ok := l.concurrencyLimiter.Acquire(ctx)
 	if !ok {
 		return 430 // 430 indicates a concurrency limiter rejection
 	}
 
-	if !l.cpuLimiter.Acquire(tenant) {
+	if !l.cpuLimiter.Acquire(client) {
 		token.OnDropped()
 		return 429 // 429 indicates a CPU limiter rejection
 	}

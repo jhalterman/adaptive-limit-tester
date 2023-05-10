@@ -10,7 +10,7 @@ import (
 
 type CpuLimiter struct {
 	// Static values
-	tenantCpuTimes map[string]int
+	clientCpuTimes map[string]int
 	mtx            sync.Mutex
 
 	// Dynamic values
@@ -21,11 +21,11 @@ type CpuLimiter struct {
 	concurrentRequests int
 }
 
-func NewCpuLimiter(initialCpuTime int, tenantCpuTimes map[string]int) *CpuLimiter {
+func NewCpuLimiter(initialCpuTime int, clientCpuTimes map[string]int) *CpuLimiter {
 	cpuLimiter := &CpuLimiter{
 		initialCpuTime:   initialCpuTime,
 		remainingCpuTime: initialCpuTime,
-		tenantCpuTimes:   tenantCpuTimes,
+		clientCpuTimes:   clientCpuTimes,
 	}
 	promauto.NewGaugeFunc(
 		prometheus.GaugeOpts{
@@ -54,10 +54,10 @@ func NewCpuLimiter(initialCpuTime int, tenantCpuTimes map[string]int) *CpuLimite
 	return cpuLimiter
 }
 
-func (l *CpuLimiter) Acquire(tenant string) bool {
+func (l *CpuLimiter) Acquire(client string) bool {
 	l.mtx.Lock()
 	initialVersion := l.configVersion
-	cpuTime := l.tenantCpuTimes[tenant]
+	cpuTime := l.clientCpuTimes[client]
 	if l.remainingCpuTime-cpuTime < 0 {
 		l.mtx.Unlock()
 		//	fmt.Println("no cpu time remaining")

@@ -8,13 +8,14 @@ import (
 
 func main() {
 	config := adaptive.InitConfig()
-	client := adaptive.NewClient(config.Client)
-	server := adaptive.NewServer(config.Server)
+	client := adaptive.NewClient(config)
+	server := adaptive.NewServer(config.Server, config)
 	adaptive.WatchConfig(client, server)
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
 	go server.Start()
 	go client.Start()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	wg.Wait()
 }
