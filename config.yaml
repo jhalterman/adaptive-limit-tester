@@ -1,5 +1,5 @@
 server:
-  fairness: true
+  adaptive_limiting: true
   available_cpu_time: 1000   # Milliseconds of CPU available initially
 
 clients:

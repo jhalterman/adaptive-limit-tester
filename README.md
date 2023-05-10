@@ -6,24 +6,24 @@ This tester produces loads from different clients against a server, and throttle
 
 The available CPU, client RPS, and request latency, are all configured in `config.yaml`:
  
-- The server has an `available_cpu_time` budget of CPU available to handle requests before they start getting rejected with 429.
+- The server has an `available_cpu_time` budget of CPU available to handle requests before limits start to kick in.
 - Different clients can be configured with individual `rps` and `cpu_time` (latency) settings.
 
-## Fairness
+## Adaptive Limiting
 
-Fairness can be enabled/disabled under the `server/fairness` setting. 
+Adaptive limiting can be enabled/disabled under the `server/adaptive_limiting` setting. 
 
-### Without Fairness
+### Without Adaptive Limiting
 
-With fairness disabled, each client request's `cpu_time` is checked against the current available CPU, which is initially set by the `available_cpu_time `, and rejected if there is no available CPU. Since this approach rejects requests without fairness, you'll notice that clients who are below their fair share of the `available_cpu_time ` (in terms of Little's Law) don't necessarily have 100% success rate.
+With adaptive limiting disabled, each client request's `cpu_time` is checked against the current available CPU, which is initially set by the `available_cpu_time `, and rejected if there is no available CPU. Since this approach rejects requests without fairness, you'll notice that clients don't necessarily get their fair share of resources when clients are configured to use more than the available concurrency (in terms of Little's Law).
 
-### With Fairness
+### With Adaptive Limiting
 
-With fairness enabled, each request is checked first against some concurrency limit, which is controlled by a TCP Vegas algorithm, and then against the CPU limit, and can be rejected by either. If recent requests are getting rejected by the CPU limit, then the Vegas algorithm will lower the concurrency limit. If recent requests are succeeding with the CPU limiter, then the Vegas algorithm will increase the concurrency limit.
+With adaptive limiting enabled, each request is checked against some concurrency limit, which is controlled by a TCP Vegas algorithm, and rejected if the client is above their limit. The limit adjusts up or down based on recent min latencies. When the CPU is fully utilized, the CPU limiter increases latency based on how far over the CPU limit we are. This will cause the Vegas algorithm to adjust concurrency limits down.
 
-The concurrency limit is further divided by the number of clients, so each client has their own limit, which provides decent fairness.
+### Fairness
 
-Presently, the Vegas algorithm tends to set the concurrency limit too low, which is not allowing clients to get their expected "fair" share of CPU. Further changes are needed to increase latency of request handling, rather than reject it outright, when the CPU is fully utilized.
+When Adaptive Limiting is enabled, the overall concurrency limit is divided by the number of clients, so each client has their own limit. This ensures that no client is utilizing more than their share of resources. When concurrency is being throttled, you'll notice that clients get close to their expected fair share of resources, even with a noisy neighbor.
 
 ## Dashboard
 
@@ -31,9 +31,10 @@ The `/dashboard` directory contains a Grafana dashboard that you can import, whi
 
 - Success rate per client
 - Responses per second: 200=success, 429=cpu limited, 430=concurrency limited
-- Concurrency limit usage per client
+- Average RTT
 - Concurrency limits per client
-- Actual overall concurrency
-- CPU time used (which influences CPU limiting)
+- Concurrency usage per client
+- Concurrent requests
+- CPU time used
 
 You'll need a prometheus scraping metrics from `localhost:8080`, which is exposed by the tester, added as a datasource in your Grafana.

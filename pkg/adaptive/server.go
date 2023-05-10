@@ -17,7 +17,7 @@ type Server struct {
 }
 
 func NewServer(serverConfig *ServerConfig, clientConfigs ClientConfigs) *Server {
-	cpuLimiter := NewCpuLimiter(serverConfig.AvailableCpuTime, clientConfigs.GetCpuTimes())
+	cpuLimiter := NewCpuLimiter(!serverConfig.AdaptiveLimiting, serverConfig.AvailableCpuTime, clientConfigs.GetCpuTimes())
 	server := &Server{
 		serverConfig:       serverConfig,
 		clientConfigs:      clientConfigs,
@@ -41,7 +41,7 @@ func (s *Server) Start() {
 
 func (s *Server) cpuLimitedHandler(client string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.serverConfig.Fairness {
+		if s.serverConfig.AdaptiveLimiting {
 			result := s.concurrencyLimiter.Acquire(client)
 			if result != 200 {
 				http.Error(w, http.StatusText(result), result)

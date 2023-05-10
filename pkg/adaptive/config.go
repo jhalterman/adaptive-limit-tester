@@ -42,7 +42,7 @@ func (c *Config) GetRps(client string) int {
 }
 
 type ServerConfig struct {
-	Fairness         bool `mapstructure:"fairness"`
+	AdaptiveLimiting bool `mapstructure:"adaptive_limiting"`
 	AvailableCpuTime int  `mapstructure:"available_cpu_time"`
 }
 

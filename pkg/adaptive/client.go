@@ -15,6 +15,7 @@ type Client struct {
 	configMtx       sync.Mutex
 	clientConfigs   ClientConfigs
 	responseCounter *prometheus.CounterVec
+	rttCounter      *prometheus.CounterVec
 }
 
 func NewClient(clientConfigs ClientConfigs) *Client {
@@ -26,15 +27,13 @@ func NewClient(clientConfigs ClientConfigs) *Client {
 			},
 			[]string{"client", "response"},
 		),
+		rttCounter: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "ad_http_rtt",
+			},
+			[]string{"client"},
+		),
 	}
-	//promauto.NewGaugeFunc(
-	//	prometheus.GaugeOpts{
-	//		Name: "ad_outstanding_client_requests",
-	//	},
-	//	func() float64 {
-	//		return client.getOutstandingRequests()
-	//	},
-	//)
 	return client
 }
 
@@ -56,7 +55,10 @@ func (c *Client) doRequest(client string) {
 			httpClient := http.Client{
 				Timeout: 10 * time.Second,
 			}
+			startTime := time.Now()
 			resp, err := httpClient.Get("http://localhost:8080/" + client)
+			elapsed := time.Now().Sub(startTime).Milliseconds()
+			c.rttCounter.WithLabelValues(client).Add(float64(elapsed))
 			if err == nil {
 				defer resp.Body.Close()
 			}

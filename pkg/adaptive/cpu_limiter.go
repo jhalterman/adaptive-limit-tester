@@ -10,6 +10,7 @@ import (
 
 type CpuLimiter struct {
 	// Static values
+	limitCpu       bool // When true, we limit CPU, otherwise we allow CPU to go negative and slow requests instead
 	clientCpuTimes map[string]int
 	mtx            sync.Mutex
 
@@ -21,8 +22,9 @@ type CpuLimiter struct {
 	concurrentRequests int
 }
 
-func NewCpuLimiter(initialCpuTime int, clientCpuTimes map[string]int) *CpuLimiter {
+func NewCpuLimiter(limitCpu bool, initialCpuTime int, clientCpuTimes map[string]int) *CpuLimiter {
 	cpuLimiter := &CpuLimiter{
+		limitCpu:         limitCpu,
 		initialCpuTime:   initialCpuTime,
 		remainingCpuTime: initialCpuTime,
 		clientCpuTimes:   clientCpuTimes,
@@ -58,9 +60,8 @@ func (l *CpuLimiter) Acquire(client string) bool {
 	l.mtx.Lock()
 	initialVersion := l.configVersion
 	cpuTime := l.clientCpuTimes[client]
-	if l.remainingCpuTime-cpuTime < 0 {
+	if l.limitCpu && l.remainingCpuTime-cpuTime < 0 {
 		l.mtx.Unlock()
-		//	fmt.Println("no cpu time remaining")
 		return false
 	}
 
@@ -70,7 +71,14 @@ func (l *CpuLimiter) Acquire(client string) bool {
 	l.mtx.Unlock()
 
 	// Simulate execution by sleeping
-	delay := time.Millisecond * time.Duration(cpuTime)
+	adjustedCpuTime := cpuTime
+	if l.remainingCpuTime < 0 {
+		overageFactor := 1.0 + (float64(-l.remainingCpuTime) / float64(l.initialCpuTime))
+		adjustedCpuTime = int(float64(cpuTime) * overageFactor)
+		//fmt.Println(fmt.Sprintf("requested cpu: %v, remaining cpu: %v, overage factor: %v, adjusted cpu: %v", cpuTime, l.remainingCpuTime, overageFactor, adjustedCpuTime))
+		//fmt.Println(fmt.Sprintf("adjusted cpu: %v", adjustedCpuTime))
+	}
+	delay := time.Millisecond * time.Duration(adjustedCpuTime)
 	time.Sleep(delay)
 	l.release(initialVersion, cpuTime)
 	return true
