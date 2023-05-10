@@ -297,7 +297,7 @@
           "refId": "B"
         }
       ],
-      "title": "Success RPS",
+      "title": "Responses per second",
       "type": "timeseries"
     },
     {

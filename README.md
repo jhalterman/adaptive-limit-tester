@@ -1,6 +1,10 @@
+## Overview
+
+This tester produces loads from different clients against a server, and throttles load using CPU limits (simulating a loaded machine) and/or adaptive concurrency limits, which try to adapt to changes in load.
+
 ## How it works
 
-This tester produces loads from different clients against a server, configured in `config.yaml`.
+The available CPU, client RPS, and request latency, are all configured in `config.yaml`:
  
 - The server has an `initial_cpu_time` budget of CPU available to handle requests before they start getting rejected with 429.
 - Clients can send different requests per second, configured under `client/rps`. This represents request rate in Little's Law.
@@ -20,8 +24,17 @@ With fairness enabled, each request is checked first against some concurrency li
 
 The concurrency limit is further divided by the number of tenants, so each tenant has their own limit, which provides decent fairness.
 
-Presently, the Vegas algorhtm tends to set the concurrency limit too low, which is not allowing tenants to get their expected "fair" share of CPU. Further chagnes are needed to increase latency of request handling, rather than reject it outright, when the CPU is fully utilized.
+Presently, the Vegas algorithm tends to set the concurrency limit too low, which is not allowing tenants to get their expected "fair" share of CPU. Further changes are needed to increase latency of request handling, rather than reject it outright, when the CPU is fully utilized.
 
 ## Dashboard
 
-The `/dashboard` directory contains a Grafana dashboard that you can import. You'll need a prometheus scraping metrics from `localhost:8080`, which is exposed by the tester, added as a datasource in your Grafana.
+The `/dashboard` directory contains a Grafana dashboard that you can import, which includes:
+
+- Success rate per tenant
+- Responses per second: 200=success, 429=cpu limited, 430=concurrency limited
+- Concurrency limit usage per tenant
+- Concurrency limits per tenant
+- Actual overall concurrency
+- CPU time used (which influences CPU limiting)
+
+You'll need a prometheus scraping metrics from `localhost:8080`, which is exposed by the tester, added as a datasource in your Grafana.
